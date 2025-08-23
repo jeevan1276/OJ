@@ -1,0 +1,77 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f7fa;
+  color: #1a1a1a;
+  line-height: 1.5;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Remove default focus outline and add custom one */
+:focus {
+  outline: none;
+}
+
+:focus-visible {
+  outline: 2px solid #4299e1;
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e0;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #a0aec0;
+}
+
+/* Monaco Editor UI Fixes */
+.monaco-editor, .monaco-editor * {
+  font-family: 'Consolas', 'Courier New', monospace !important;
+  box-sizing: content-box !important;
+}
+
+.monaco-editor .suggest-widget {
+  background: #252526 !important;
+  color: #d4d4d4 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list-row {
+  font-family: 'Consolas', 'Courier New', monospace !important;
+  font-size: 14px !important;
+}
+
+.monaco-editor .suggest-widget .monaco-list-row .codicon {
+  font-family: 'codicon' !important;
+}
+
+/* End Monaco Editor UI Fixes */

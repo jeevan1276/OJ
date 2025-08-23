@@ -1,0 +1,131 @@
+.hint-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.hint-modal {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  width: 95%;
+  max-width: 420px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  animation: slideUp 0.2s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(30px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.hint-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, #f7c948 0%, #f7b42c 100%);
+  color: #333;
+  padding: 18px 24px;
+  border-radius: 16px 16px 0 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.hint-modal-close {
+  background: none;
+  border: none;
+  color: #333;
+  font-size: 1.2rem;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 50%;
+  transition: background 0.2s;
+}
+.hint-modal-close:hover {
+  background: #f7e6b0;
+}
+
+.hint-modal-body {
+  padding: 20px 24px 10px 24px;
+  background: #fffbe7;
+  min-height: 60px;
+}
+
+.hint-item {
+  margin-bottom: 16px;
+}
+.hint-number {
+  font-weight: 600;
+  color: #f7b42c;
+  margin-bottom: 2px;
+}
+.hint-text {
+  color: #333;
+  font-size: 1rem;
+  line-height: 1.5;
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px 14px;
+  box-shadow: 0 1px 4px rgba(247, 200, 72, 0.08);
+}
+.hint-error {
+  color: #d7263d;
+  background: #fff0f0;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-top: 10px;
+  font-weight: 500;
+}
+.hint-loading {
+  color: #f7b42c;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+.hint-modal-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 24px;
+  background: #fffbe7;
+  border-radius: 0 0 16px 16px;
+  font-size: 0.98rem;
+}
+.hint-modal-footer button {
+  background: linear-gradient(90deg, #f7c948 0%, #f7b42c 100%);
+  color: #333;
+  border: none;
+  border-radius: 8px;
+  padding: 7px 18px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.hint-modal-footer button:hover {
+  background: #f7e6b0;
+}
+
+@media (max-width: 600px) {
+  .hint-modal {
+    max-width: 98vw;
+    padding: 0;
+  }
+  .hint-modal-header, .hint-modal-body, .hint-modal-footer {
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+} 

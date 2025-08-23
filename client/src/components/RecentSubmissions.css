@@ -1,0 +1,54 @@
+.recent-submissions-list {
+  margin-top: 1.5rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  padding: 1rem;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.08);
+}
+.recent-submission-card {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 0.75rem 0;
+}
+.recent-submission-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: auto;
+  font-size: 1.1rem;
+}
+.recent-submission-code {
+  background: #23272f;
+  color: #f8fafc;
+  border-radius: 6px;
+  padding: 0.75rem;
+  margin: 0.5rem 0;
+  font-size: 0.95rem;
+  overflow-x: auto;
+}
+.recent-submission-details {
+  font-size: 0.9rem;
+  color: #555;
+  margin-top: 0.25rem;
+}
+.error-message {
+  color: #dc2626;
+  margin-left: 1rem;
+}
+.status-icon.accepted { color: #10b981; }
+.status-icon.wrong { color: #ef4444; }
+.status-icon.tle { color: #f59e0b; }
+.status-icon.mle { color: #8b5cf6; }
+.status-icon.runtime { color: #dc2626; }
+.status-icon.compile { color: #ea580c; }
+.status-icon.error { color: #6b7280; }
+.status-text.accepted { color: #10b981; }
+.status-text.wrong_answer { color: #ef4444; }
+.status-text.time_limit_exceeded { color: #f59e0b; }
+.status-text.memory_limit_exceeded { color: #8b5cf6; }
+.status-text.runtime_error { color: #dc2626; }
+.status-text.compilation_error { color: #ea580c; } 
