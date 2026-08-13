@@ -5,8 +5,9 @@ WORKDIR /app
 RUN apt-get update -y \
     && apt-get install -y --no-install-recommends \
        openjdk-17-jdk \
-       gcc \
-       g++ \
+         gcc \
+         g++ \
+         docker.io \
     && rm -rf /var/lib/apt/lists/*
 
 COPY package*.json ./

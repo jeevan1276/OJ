@@ -1,93 +1,68 @@
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
+import { v4 as uuid } from 'uuid';
+import { runInDocker, DEFAULTS } from './dockerRunner.js';
 
 const __dirname = path.resolve();
-const outputPath = path.join(__dirname, "outputs");
-if (!fs.existsSync(outputPath)) {
-    fs.mkdirSync(outputPath, { recursive: true });
-}
+const runsDir = path.join(__dirname, 'runs');
+if (!fs.existsSync(runsDir)) fs.mkdirSync(runsDir, { recursive: true });
 
-const executeJava = (filePath, inputFilePath = null) => {
-    const jobId = path.basename(filePath, '.java');
-    const dir = path.dirname(filePath);
-    const classFile = path.join(dir, `${jobId}.class`);
+const RUNNER_IMAGE = process.env.SANDBOX_RUNNER_IMAGE || 'oj-runner:latest';
 
-    return new Promise((resolve, reject) => {
-        const compileProcess = exec(`javac "${filePath}"`, { timeout: 10000 }, (compileErr, compileStdout, compileStderr) => {
-            if (compileErr) {
-                setTimeout(() => { 
-                    try { 
-                        if (dir.includes('java_')) {
-                            if (fs.existsSync(dir)) {
-                                fs.rmSync(dir, { recursive: true, force: true });
-                            }
-                        } else {
-                            if (fs.existsSync(filePath)) fs.unlinkSync(filePath); 
-                        }
-                    } catch (e) {
-                    } 
-                }, 20000);
-                
-                let errorMessage = compileStderr;
-                if (compileStderr.includes('class not found') || compileStderr.includes('cannot find symbol')) {
-                    errorMessage = 'Class not found error: Please ensure your class name matches the file name and all required classes are properly defined.';
-                } else if (compileStderr.includes('missing return statement')) {
-                    errorMessage = 'Missing return statement: Please ensure your method returns the expected value.';
-                } else if (compileStderr.includes('illegal start of expression')) {
-                    errorMessage = 'Syntax error: Please check your code syntax and method structure.';
-                } else if (compileErr.code === 'ETIMEDOUT') {
-                    errorMessage = 'Compilation timeout: The compilation took too long. Please check your code for infinite loops or complex operations.';
-                }
-                
-                return reject({ error: errorMessage, stderr: compileStderr });
-            }
-            
-            let runCmd = `java -cp "${dir}" ${jobId}`;
-            if (inputFilePath) {
-                runCmd = `java -cp "${dir}" ${jobId} < "${inputFilePath}"`;
-            }
-            const startTime = Date.now();
-            
-            const runProcess = exec(runCmd, { timeout: 15000 }, (runErr, runStdout, runStderr) => {
-                const execTime = Date.now() - startTime;
-                setTimeout(() => { 
-                    try { 
-                        if (dir.includes('java_')) {
-                            if (fs.existsSync(dir)) {
-                                fs.rmSync(dir, { recursive: true, force: true });
-                            }
-                        } else {
-                            if (fs.existsSync(filePath)) fs.unlinkSync(filePath); 
-                        }
-                    } catch (e) {
-                    } 
-                }, 20000);
-                setTimeout(() => { 
-                    try { 
-                        if (fs.existsSync(classFile)) fs.unlinkSync(classFile); 
-                    } catch (e) {
-                    } 
-                }, 20000);
-                if (runErr) {
-                    
-                    let errorMessage = runStderr;
-                    if (runStderr.includes('NoClassDefFoundError') || runStderr.includes('ClassNotFoundException')) {
-                        errorMessage = 'Class not found at runtime: The compiled class could not be found. This may be due to a class name mismatch.';
-                    } else if (runStderr.includes('NoSuchMethodError')) {
-                        errorMessage = 'Method not found: The main method or required method could not be found.';
-                    } else if (runStderr.includes('Exception in thread "main"')) {
-                        errorMessage = 'Runtime exception: ' + runStderr.split('Exception in thread "main"')[1]?.trim() || runStderr;
-                    } else if (runErr.code === 'ETIMEDOUT') {
-                        errorMessage = 'Execution timeout: The program took too long to execute. Please check for infinite loops or inefficient algorithms.';
-                    }
-                    
-                    return reject({ error: errorMessage, stderr: runStderr });
-                }
-                resolve({ stdout: runStdout, stderr: runStderr, execTime });
-            });
-        });
-    });
+const copyToRunDir = (srcPath, destDir) => {
+  const base = path.basename(srcPath);
+  const dest = path.join(destDir, base);
+  fs.copyFileSync(srcPath, dest);
+  return base;
+};
+
+const executeJava = async (filePath, inputFilePath = null) => {
+  const jobId = path.basename(filePath, '.java') || 'Solution';
+  const runId = uuid();
+  const runPath = path.join(runsDir, runId);
+  fs.mkdirSync(runPath, { recursive: true });
+
+  const srcBase = copyToRunDir(filePath, runPath); // typically Solution.java
+  let inputBase = null;
+  if (inputFilePath) inputBase = copyToRunDir(inputFilePath, runPath);
+
+  // preserve Java's compile/run timeouts: 10s compile, 15s run
+  const containerCmd = [
+    '/bin/sh',
+    '-c',
+    `timeout 10s javac "/submission/${srcBase}" -d /workspace 2>/workspace/compile.err; COMPILE_STATUS=$?; if [ $COMPILE_STATUS -ne 0 ]; then cat /workspace/compile.err 1>&2; exit 2; fi; if [ -f /submission/${inputBase} ]; then timeout 15s java -cp /workspace ${jobId} < /submission/${inputBase} 1>/workspace/run.out 2>/workspace/run.err; else timeout 15s java -cp /workspace ${jobId} 1>/workspace/run.out 2>/workspace/run.err; fi; RUN_STATUS=$?; cat /workspace/run.out; if [ -s /workspace/run.err ]; then cat /workspace/run.err 1>&2; fi; exit $RUN_STATUS`
+  ];
+
+  try {
+    const result = await runInDocker({ image: RUNNER_IMAGE, hostSubmissionDir: runPath, containerCmdArgs: containerCmd, timeoutMs: parseInt(process.env.SANDBOX_TIMEOUT_MS || DEFAULTS.timeoutMs, 10) });
+
+    // schedule cleanup of original files
+    setTimeout(() => { try { fs.unlinkSync(filePath); } catch (e) {} }, 20000);
+    setTimeout(() => { try { if (inputFilePath) fs.unlinkSync(inputFilePath); } catch (e) {} }, 20000);
+    // cleanup run dir
+    try { fs.rmSync(runPath, { recursive: true, force: true }); } catch (e) {}
+
+    if (result.error && result.exitCode === null) {
+      throw new Error(`Docker failure: ${result.error.message || result.error}`);
+    }
+
+    const execTime = result.execTime;
+    const stdout = result.stdout || '';
+    const stderr = result.stderr || '';
+
+    if (result.exitCode === 2) {
+      return Promise.reject({ error: stderr || 'Compilation failed', stderr });
+    }
+
+    if (result.exitCode !== 0) {
+      return Promise.reject({ error: stderr || result.error || 'Execution failed', stderr });
+    }
+
+    return { stdout, stderr, execTime };
+  } catch (err) {
+    try { fs.rmSync(runPath, { recursive: true, force: true }); } catch (e) {}
+    throw err;
+  }
 };
 
 export default executeJava;

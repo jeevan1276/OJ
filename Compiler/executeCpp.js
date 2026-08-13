@@ -1,43 +1,72 @@
 import fs from 'fs';
 import path from 'path';
-import { exec } from 'child_process';
+import { v4 as uuid } from 'uuid';
+import { runInDocker, DEFAULTS } from './dockerRunner.js';
 
 const __dirname = path.resolve();
-const outputPath = path.join(__dirname, "outputs");
-if (!fs.existsSync(outputPath)) {
-  fs.mkdirSync(outputPath, { recursive: true });
-}
+const runsDir = path.join(__dirname, 'runs');
+if (!fs.existsSync(runsDir)) fs.mkdirSync(runsDir, { recursive: true });
 
-const executeCpp = (filePath, inputFilePath = null) => {
-  const jobId = path.basename(filePath).split(".")[0];
-  const outputFileName = `${jobId}.out`;
-  const outPath = path.join(outputPath, outputFileName);
+const RUNNER_IMAGE = process.env.SANDBOX_RUNNER_IMAGE || 'oj-runner:latest';
 
-  return new Promise((resolve, reject) => {
-    exec(`g++ -Werror=return-type   "${filePath}" -o "${outPath}"`, (compileErr, compileStdout, compileStderr) => {
-      if (compileErr) {
-        setTimeout(() => { try { fs.unlinkSync(filePath); } catch (e) {
-        } }, 20000);
-        return reject({ error: compileStderr, stderr: compileStderr });
-      } 
-      let runCmd = `"${outPath}"`;
-      if (inputFilePath) {
-        runCmd = `"${outPath}" < "${inputFilePath}"`;
-      }
-      const startTime = Date.now();
-      exec(runCmd, (runErr, runStdout, runStderr) => {
-        const execTime = Date.now() - startTime;
-        setTimeout(() => { try { fs.unlinkSync(filePath); } catch (e) {
-        } }, 20000);
-        setTimeout(() => { try { fs.unlinkSync(outPath); } catch (e) {
-        } }, 20000);
-        if (runErr) {
-          return reject({ error: runErr.message, stderr: runStderr });
-        }
-        resolve({ stdout: runStdout, stderr: runStderr, execTime });
-      });
-    });
-  });
+const copyToRunDir = (srcPath, destDir) => {
+  const base = path.basename(srcPath);
+  const dest = path.join(destDir, base);
+  fs.copyFileSync(srcPath, dest);
+  return base;
+};
+
+const executeCpp = async (filePath, inputFilePath = null) => {
+  const jobId = path.basename(filePath).split('.')[0] || uuid();
+  const runId = uuid();
+  const runPath = path.join(runsDir, runId);
+  fs.mkdirSync(runPath, { recursive: true });
+
+  const srcBase = copyToRunDir(filePath, runPath);
+  let inputBase = null;
+  if (inputFilePath) {
+    inputBase = copyToRunDir(inputFilePath, runPath);
+  }
+
+  const containerCmd = [
+    '/bin/sh',
+    '-c',
+    `g++ -Werror=return-type "/submission/${srcBase}" -o /workspace/a.out 2>/workspace/compile.err; COMPILE_STATUS=$?; if [ $COMPILE_STATUS -ne 0 ]; then cat /workspace/compile.err 1>&2; exit 2; fi; if [ -f /submission/${inputBase} ]; then /workspace/a.out < /submission/${inputBase} 1>/workspace/run.out 2>/workspace/run.err; else /workspace/a.out 1>/workspace/run.out 2>/workspace/run.err; fi; RUN_STATUS=$?; cat /workspace/run.out; if [ -s /workspace/run.err ]; then cat /workspace/run.err 1>&2; fi; exit $RUN_STATUS`
+  ];
+
+  try {
+    const result = await runInDocker({ image: RUNNER_IMAGE, hostSubmissionDir: runPath, containerCmdArgs: containerCmd, timeoutMs: parseInt(process.env.SANDBOX_TIMEOUT_MS || DEFAULTS.timeoutMs, 10) });
+
+    // schedule cleanup of original files
+    setTimeout(() => { try { fs.unlinkSync(filePath); } catch (e) {} }, 20000);
+    setTimeout(() => { try { if (inputFilePath) fs.unlinkSync(inputFilePath); } catch (e) {} }, 20000);
+    // cleanup run dir
+    try { fs.rmSync(runPath, { recursive: true, force: true }); } catch (e) {}
+
+    if (result.error && result.exitCode === null) {
+      // docker CLI or daemon error
+      throw new Error(`Docker failure: ${result.error.message || result.error}`);
+    }
+
+    // map exit codes: 2 -> compile error, non-zero -> runtime error
+    const execTime = result.execTime;
+    const stdout = result.stdout || '';
+    const stderr = result.stderr || '';
+
+    // If compile error, return as rejection with stderr
+    if (result.exitCode === 2) {
+      return Promise.reject({ error: stderr || 'Compilation failed', stderr });
+    }
+
+    if (result.exitCode !== 0) {
+      return Promise.reject({ error: stderr || result.error || 'Execution failed', stderr });
+    }
+
+    return { stdout, stderr, execTime };
+  } catch (err) {
+    try { fs.rmSync(runPath, { recursive: true, force: true }); } catch (e) {}
+    throw err;
+  }
 };
 
 export default executeCpp;
