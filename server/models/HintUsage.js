@@ -1,6 +1,12 @@
 import mongoose from 'mongoose';
 
 const HintUsageSchema = new mongoose.Schema({
+  tenantId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Tenant',
+    required: true,
+    index: true
+  },
   userId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
@@ -25,7 +31,9 @@ const HintUsageSchema = new mongoose.Schema({
   timestamps: true
 });
 
-HintUsageSchema.index({ userId: 1, problemId: 1 }, { unique: true });
+HintUsageSchema.index({ tenantId: 1, userId: 1, problemId: 1 }, { unique: true });
+HintUsageSchema.index({ tenantId: 1, userId: 1 });
+HintUsageSchema.index({ tenantId: 1, problemId: 1 });
 
 const HintUsage = mongoose.model('HintUsage', HintUsageSchema);
 export default HintUsage; 

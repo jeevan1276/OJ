@@ -9,7 +9,10 @@ const COMPILER_URL =  process.env.COMPILER_URL;
 export const createProblem = async (req, res) => {
     const { title, description, difficulty, categories, timeLimit, memoryLimit, publicTestCases, hiddenTestCases } = req.body;
 
-    const existingProblem = await Problem.findOne({ title });
+    const existingProblem = await Problem.findOne({ 
+        title, 
+        tenantId: req.tenantId 
+    });
     if (existingProblem) {
         throw new ErrorResponse('Problem with this title already exists', StatusCodes.BAD_REQUEST);
     }
@@ -27,7 +30,8 @@ export const createProblem = async (req, res) => {
         memoryLimit,
         publicTestCases,
         hiddenTestCases,
-        author: req.user.id
+        author: req.user.id,
+        tenantId: req.tenantId
     });
 
     res.status(StatusCodes.CREATED).json({
@@ -40,7 +44,10 @@ export const getAllProblems = async (req, res) => {
     try {
         const startTime = Date.now();
         
-        const problems = await Problem.find({ isPublished: true })
+        const problems = await Problem.find({ 
+            isPublished: true,
+            tenantId: req.tenantId 
+        })
             .populate('author', 'fullName');
 
         let problemsWithStatus = problems;
@@ -52,6 +59,7 @@ export const getAllProblems = async (req, res) => {
                 {
                     $match: {
                         user: new mongoose.Types.ObjectId(req.user.id),
+                        tenantId: new mongoose.Types.ObjectId(req.tenantId),
                         problem: { $in: problemIds }
                     }
                 },
@@ -127,7 +135,26 @@ export const getUserProblemStatus = async (req, res) => {
             });
         }
 
-        const statusResult = await Submission.getUserProblemStatus(req.user.id, problemId);
+        const statusResult = await Submission.aggregate([
+            {
+                $match: {
+                    user: new mongoose.Types.ObjectId(req.user.id),
+                    problem: new mongoose.Types.ObjectId(problemId),
+                    tenantId: new mongoose.Types.ObjectId(req.tenantId)
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    hasAccepted: {
+                        $max: {
+                            $cond: [{ $eq: ['$status', 'accepted'] }, 1, 0]
+                        }
+                    },
+                    hasAttempted: { $sum: 1 }
+                }
+            }
+        ]);
         
         let status = 'unsolved';
         if (statusResult.length > 0) {
@@ -159,6 +186,11 @@ export const getProblem = async (req, res) => {
 
     if (!problem) {
         throw new ErrorResponse(`Problem with id ${id} not found`, StatusCodes.NOT_FOUND);
+    }
+
+    // Verify problem belongs to tenant
+    if (problem.tenantId.toString() !== req.tenantId.toString()) {
+        throw new ErrorResponse('You do not have access to this problem.', StatusCodes.FORBIDDEN);
     }
 
     if (!problem.isPublished) {
@@ -197,12 +229,20 @@ export const updateProblem = async (req, res) => {
         throw new ErrorResponse(`Problem with id ${id} not found`, StatusCodes.NOT_FOUND);
     }
 
+    // Verify problem belongs to tenant
+    if (problem.tenantId.toString() !== req.tenantId.toString()) {
+        throw new ErrorResponse('You do not have access to this problem.', StatusCodes.FORBIDDEN);
+    }
+
     if (problem.author.toString() !== req.user.id && req.user.role !== 'admin') {
         throw new ErrorResponse('You do not have permission to update this problem.', StatusCodes.FORBIDDEN);
     }
 
     if (title && title !== problem.title) {
-        const existingProblem = await Problem.findOne({ title });
+        const existingProblem = await Problem.findOne({ 
+            title, 
+            tenantId: req.tenantId 
+        });
         if (existingProblem) {
             throw new ErrorResponse('Problem with this title already exists', StatusCodes.BAD_REQUEST);
         }
@@ -241,6 +281,11 @@ export const deleteProblem = async (req, res) => {
 
     if (!problem) {
         throw new ErrorResponse(`Problem with id ${id} not found`, StatusCodes.NOT_FOUND);
+    }
+
+    // Verify problem belongs to tenant
+    if (problem.tenantId.toString() !== req.tenantId.toString()) {
+        throw new ErrorResponse('You do not have access to this problem.', StatusCodes.FORBIDDEN);
     }
 
     if (problem.author.toString() !== req.user.id && req.user.role !== 'admin') {
@@ -651,6 +696,7 @@ export const submitSolution = async (req, res) => {
                     await Submission.create({
                         user: req.user.id,
                         problem: id,
+                        tenantId: req.tenantId,
                         code,
                         language,
                         status,
@@ -677,6 +723,7 @@ export const submitSolution = async (req, res) => {
                     await Submission.create({
                         user: req.user.id,
                         problem: id,
+                        tenantId: req.tenantId,
                         code,
                         language,
                         status,
@@ -717,6 +764,7 @@ export const submitSolution = async (req, res) => {
                 await Submission.create({
                     user: req.user.id,
                     problem: id,
+                    tenantId: req.tenantId,
                     code,
                     language,
                     status,
@@ -733,6 +781,7 @@ export const submitSolution = async (req, res) => {
         const submission = await Submission.create({
             user: req.user.id,
             problem: id,
+            tenantId: req.tenantId,
             code,
             language,
             status,

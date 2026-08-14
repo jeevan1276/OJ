@@ -1,5 +1,6 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import Tenant from '../models/Tenant.js';
 
 export const deserializeUser = async (req, res, next) => {
     let token;
@@ -11,6 +12,10 @@ export const deserializeUser = async (req, res, next) => {
             req.user = await User.findById(decoded.id);
             if (!req.user) {
                 req.authError = { type: 'UserNotFound' };
+            } else {
+                // Extract tenantId from JWT and attach to request
+                req.tenant = { id: decoded.tenantId };
+                req.tenantId = decoded.tenantId;
             }
         } catch (err) {
             if (err.name === 'TokenExpiredError') {

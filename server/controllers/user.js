@@ -91,7 +91,10 @@ export const getUserSubmissions = async (req, res) => {
             sortOrder = 'desc'
         } = req.query;
 
-        const filterQuery = { user: req.user.id };
+        const filterQuery = { 
+            user: req.user.id,
+            tenantId: req.tenantId 
+        };
         
         if (status && status !== 'all') {
             filterQuery.status = status;
@@ -124,7 +127,38 @@ export const getUserSubmissions = async (req, res) => {
 
         const total = await Submission.countDocuments(filterQuery);
 
-        const userStats = await Submission.getUserStats(req.user.id);
+        const userStats = await Submission.aggregate([
+            {
+                $match: { 
+                    user: new mongoose.Types.ObjectId(req.user.id),
+                    tenantId: new mongoose.Types.ObjectId(req.tenantId)
+                }
+            },
+            {
+                $group: {
+                    _id: '$problem',
+                    hasAccepted: {
+                        $max: {
+                            $cond: [{ $eq: ['$status', 'accepted'] }, 1, 0]
+                        }
+                    },
+                    totalSubmissions: { $sum: 1 },
+                    latestSubmission: { $first: '$$ROOT' }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalProblems: { $sum: 1 },
+                    solvedProblems: {
+                        $sum: {
+                            $cond: [{ $eq: ['$hasAccepted', 1] }, 1, 0]
+                        }
+                    },
+                    totalSubmissions: { $sum: '$totalSubmissions' }
+                }
+            }
+        ]);
 
         res.status(StatusCodes.OK).json({
             success: true,
@@ -153,11 +187,45 @@ export const getUserSubmissions = async (req, res) => {
 
 export const getUserStats = async (req, res) => {
     try {
-        const userStats = await Submission.getUserStats(req.user.id);
+        const userStats = await Submission.aggregate([
+            {
+                $match: { 
+                    user: new mongoose.Types.ObjectId(req.user.id),
+                    tenantId: new mongoose.Types.ObjectId(req.tenantId)
+                }
+            },
+            {
+                $group: {
+                    _id: '$problem',
+                    hasAccepted: {
+                        $max: {
+                            $cond: [{ $eq: ['$status', 'accepted'] }, 1, 0]
+                        }
+                    },
+                    totalSubmissions: { $sum: 1 },
+                    latestSubmission: { $first: '$$ROOT' }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    totalProblems: { $sum: 1 },
+                    solvedProblems: {
+                        $sum: {
+                            $cond: [{ $eq: ['$hasAccepted', 1] }, 1, 0]
+                        }
+                    },
+                    totalSubmissions: { $sum: '$totalSubmissions' }
+                }
+            }
+        ]);
         
         const difficultyStats = await Submission.aggregate([
             {
-                $match: { user: new mongoose.Types.ObjectId(req.user.id) }
+                $match: { 
+                    user: new mongoose.Types.ObjectId(req.user.id),
+                    tenantId: new mongoose.Types.ObjectId(req.tenantId)
+                }
             },
             {
                 $lookup: {
@@ -185,7 +253,10 @@ export const getUserStats = async (req, res) => {
 
         const categoryStats = await Submission.aggregate([
             {
-                $match: { user: new mongoose.Types.ObjectId(req.user.id) }
+                $match: { 
+                    user: new mongoose.Types.ObjectId(req.user.id),
+                    tenantId: new mongoose.Types.ObjectId(req.tenantId)
+                }
             },
             {
                 $lookup: {
@@ -243,6 +314,7 @@ export const getSolvedProblems = async (req, res) => {
             {
                 $match: {
                     user: new mongoose.Types.ObjectId(req.user.id),
+                    tenantId: new mongoose.Types.ObjectId(req.tenantId),
                     status: 'accepted'
                 }
             },
@@ -280,6 +352,7 @@ export const getSolvedProblems = async (req, res) => {
             {
                 $match: {
                     user: new mongoose.Types.ObjectId(req.user.id),
+                    tenantId: new mongoose.Types.ObjectId(req.tenantId),
                     status: 'accepted'
                 }
             },

@@ -98,6 +98,12 @@ const problemSchema = new mongoose.Schema({
         ref: 'User',
         required: [true, 'Problem author is required']
     },
+    tenantId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Tenant',
+        required: [true, 'Tenant ID is required'],
+        index: true
+    },
     isPublished: {
         type: Boolean,
         default: false
@@ -138,6 +144,10 @@ problemSchema.virtual('acceptanceRate').get(function() {
 });
 
 problemSchema.index({ title: 'text', description: 'text', categories: 'text' });
+problemSchema.index({ tenantId: 1, isPublished: 1 });
+problemSchema.index({ tenantId: 1, author: 1 });
+problemSchema.index({ tenantId: 1, createdAt: -1 });
+problemSchema.index({ tenantId: 1, title: 1 }, { unique: true });
 
 problemSchema.pre('save', function(next) {
     this.updatedAt = Date.now();

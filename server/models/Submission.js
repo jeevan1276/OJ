@@ -11,6 +11,12 @@ const submissionSchema = new mongoose.Schema({
         ref: 'Problem',
         required: [true, 'Problem is required']
     },
+    tenantId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Tenant',
+        required: [true, 'Tenant ID is required'],
+        index: true
+    },
     code: {
         type: String,
         required: [true, 'Code is required'],
@@ -61,10 +67,12 @@ const submissionSchema = new mongoose.Schema({
 });
 
 submissionSchema.index({ user: 1, problem: 1 });
-submissionSchema.index({ user: 1, status: 1 });
-submissionSchema.index({ problem: 1, status: 1 });
-submissionSchema.index({ user: 1, submittedAt: -1 });
-submissionSchema.index({ problem: 1, submittedAt: -1 });
+submissionSchema.index({ tenantId: 1, user: 1 });
+submissionSchema.index({ tenantId: 1, problem: 1 });
+submissionSchema.index({ tenantId: 1, user: 1, status: 1 });
+submissionSchema.index({ tenantId: 1, problem: 1, status: 1 });
+submissionSchema.index({ tenantId: 1, user: 1, submittedAt: -1 });
+submissionSchema.index({ tenantId: 1, problem: 1, submittedAt: -1 });
 
 submissionSchema.virtual('successRate').get(function() {
     if (this.totalTestCases === 0) return 0;

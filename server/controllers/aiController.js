@@ -20,9 +20,10 @@ export const generateProblemHint = async (req, res) => {
 
     const { problemId, userCode, hintNumber } = req.body;
     const userId = req.user.id; // From auth middleware
+    const tenantId = req.tenantId;
 
     // Get current hints
-    const currentHints = await getHintsForUser(userId, problemId);
+    const currentHints = await getHintsForUser(userId, problemId, tenantId);
     const currentHintCount = currentHints.length;
     if (currentHintCount >= 2) {
       return res.status(400).json({
@@ -59,11 +60,11 @@ export const generateProblemHint = async (req, res) => {
       hint = currentHints[requestedHintNumber - 1];
     } else {
       hint = await generateHint(problemData, userCode, requestedHintNumber);
-      await recordHintUsage(userId, problemId, requestedHintNumber, hint);
+      await recordHintUsage(userId, problemId, tenantId, requestedHintNumber, hint);
     }
 
     // Get updated hints and count
-    const updatedHints = await getHintsForUser(userId, problemId);
+    const updatedHints = await getHintsForUser(userId, problemId, tenantId);
     const updatedHintCount = updatedHints.length;
 
     res.json({
@@ -146,8 +147,9 @@ export const getHintCountForProblem = async (req, res) => {
   try {
     const { problemId } = req.params;
     const userId = req.user.id;
+    const tenantId = req.tenantId;
 
-    const hintCount = await getHintCount(userId, problemId);
+    const hintCount = await getHintCount(userId, problemId, tenantId);
 
     res.json({
       success: true,
@@ -173,7 +175,8 @@ export const getUserHintsForProblem = async (req, res) => {
   try {
     const { problemId } = req.params;
     const userId = req.user.id;
-    const hints = await getHintsForUser(userId, problemId);
+    const tenantId = req.tenantId;
+    const hints = await getHintsForUser(userId, problemId, tenantId);
     res.json({
       success: true,
       data: { hints }

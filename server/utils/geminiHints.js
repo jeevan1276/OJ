@@ -57,10 +57,11 @@ Instructions: Generate hint number ${hintNumber} for this problem.
  * Check if user has already received hints for this problem
  * @param {string} userId - User ID
  * @param {string} problemId - Problem ID
+ * @param {string} tenantId - Tenant ID
  * @returns {Promise<number>} Number of hints already given (0, 1, or 2)
  */
-export async function getHintCount(userId, problemId) {
-  const doc = await HintUsage.findOne({ userId, problemId });
+export async function getHintCount(userId, problemId, tenantId) {
+  const doc = await HintUsage.findOne({ userId, problemId, tenantId });
   let count = 0;
   if (doc) {
     if (doc.hint1) count++;
@@ -69,8 +70,8 @@ export async function getHintCount(userId, problemId) {
   return count;
 }
 
-export async function getHintsForUser(userId, problemId) {
-  const doc = await HintUsage.findOne({ userId, problemId });
+export async function getHintsForUser(userId, problemId, tenantId) {
+  const doc = await HintUsage.findOne({ userId, problemId, tenantId });
   const hints = [];
   if (doc) {
     if (doc.hint1) hints.push(doc.hint1);
@@ -83,13 +84,14 @@ export async function getHintsForUser(userId, problemId) {
  * Record that a hint was given to a user
  * @param {string} userId - User ID
  * @param {string} problemId - Problem ID
+ * @param {string} tenantId - Tenant ID
  * @param {number} hintNumber - Which hint was given
  */
-export async function recordHintUsage(userId, problemId, hintNumber, hintText) {
-  if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(problemId)) return;
-  let doc = await HintUsage.findOne({ userId, problemId });
+export async function recordHintUsage(userId, problemId, tenantId, hintNumber, hintText) {
+  if (!mongoose.Types.ObjectId.isValid(userId) || !mongoose.Types.ObjectId.isValid(problemId) || !mongoose.Types.ObjectId.isValid(tenantId)) return;
+  let doc = await HintUsage.findOne({ userId, problemId, tenantId });
   if (!doc) {
-    doc = new HintUsage({ userId, problemId });
+    doc = new HintUsage({ userId, problemId, tenantId });
   }
   if (hintNumber === 1 && !doc.hint1) {
     doc.hint1 = hintText;

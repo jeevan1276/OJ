@@ -35,6 +35,12 @@ const userSchema = new mongoose.Schema({
         default: 'user',
         index: true
     },
+    tenantId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'Tenant',
+        required: [true, 'Tenant ID is required'],
+        index: true
+    },
     resetPasswordToken: String,
     resetPasswordExpire: Date,
     createdAt: {
@@ -48,8 +54,10 @@ const userSchema = new mongoose.Schema({
     toObject: { virtuals: true }
 });
 
-userSchema.index({ email: 1, role: 1 });
-userSchema.index({ createdAt: -1, role: 1 });
+userSchema.index({ email: 1, tenantId: 1 });
+userSchema.index({ role: 1, tenantId: 1 });
+userSchema.index({ createdAt: -1, tenantId: 1 });
+userSchema.index({ tenantId: 1, email: 1 }, { unique: true });
 
 userSchema.pre('save', async function(next) {
     if (!this.isModified('password')) return next();
@@ -66,7 +74,7 @@ userSchema.pre('save', async function(next) {
 
 userSchema.methods.generateAuthToken = function() {
     return jwt.sign(
-        { id: this._id, role: this.role },
+        { id: this._id, role: this.role, tenantId: this.tenantId },
         process.env.JWT_SECRET,
         { expiresIn: process.env.JWT_EXPIRE }
     );
