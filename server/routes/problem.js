@@ -28,7 +28,7 @@ router.post('/:id/submit', submitSolution);
 router.get('/:problemId/status', getUserProblemStatus);
 router.get('/:id/recent-submissions', getRecentSubmissions);
 
-router.post('/', authorizeRoles('admin'), createProblem);
-router.patch('/:id', authorizeRoles('admin'), updateProblem);
-router.delete('/:id', authorizeRoles('admin'), deleteProblem);
+router.post('/', authorizeRoles('admin', 'problem-setter'), createProblem);
+router.patch('/:id', authorizeRoles('admin', 'problem-setter'), updateProblem);
+router.delete('/:id', authorizeRoles('admin', 'problem-setter'), deleteProblem);
 export default router; 

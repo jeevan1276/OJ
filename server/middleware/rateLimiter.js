@@ -10,7 +10,7 @@ export const authLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-        return req.headers['x-test-mode'] === 'true';
+        return process.env.NODE_ENV !== 'production' && req.headers['x-test-mode'] === 'true';
     },
     handler: (req, res) => {
         res.status(429).json({
@@ -30,7 +30,7 @@ export const apiLimiter = rateLimit({
     standardHeaders: true,
     legacyHeaders: false,
     skip: (req) => {
-        return req.headers['x-test-mode'] === 'true';
+        return process.env.NODE_ENV !== 'production' && req.headers['x-test-mode'] === 'true';
     },
     handler: (req, res) => {
         res.status(429).json({

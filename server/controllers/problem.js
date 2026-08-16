@@ -234,7 +234,14 @@ export const updateProblem = async (req, res) => {
         throw new ErrorResponse('You do not have access to this problem.', StatusCodes.FORBIDDEN);
     }
 
-    if (problem.author.toString() !== req.user.id && req.user.role !== 'admin') {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = problem.author.toString() === req.user.id;
+
+    if (!isAdmin && req.user.role === 'problem-setter' && !isOwner) {
+        throw new ErrorResponse('You do not have permission to update this problem.', StatusCodes.FORBIDDEN);
+    }
+
+    if (!isAdmin && req.user.role !== 'problem-setter' && !isOwner) {
         throw new ErrorResponse('You do not have permission to update this problem.', StatusCodes.FORBIDDEN);
     }
 
@@ -288,7 +295,14 @@ export const deleteProblem = async (req, res) => {
         throw new ErrorResponse('You do not have access to this problem.', StatusCodes.FORBIDDEN);
     }
 
-    if (problem.author.toString() !== req.user.id && req.user.role !== 'admin') {
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = problem.author.toString() === req.user.id;
+
+    if (!isAdmin && req.user.role === 'problem-setter' && !isOwner) {
+        throw new ErrorResponse('You do not have permission to delete this problem.', StatusCodes.FORBIDDEN);
+    }
+
+    if (!isAdmin && req.user.role !== 'problem-setter' && !isOwner) {
         throw new ErrorResponse('You do not have permission to delete this problem.', StatusCodes.FORBIDDEN);
     }
 
