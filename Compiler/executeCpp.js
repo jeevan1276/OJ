@@ -31,7 +31,7 @@ const executeCpp = async (filePath, inputFilePath = null) => {
   const containerCmd = [
     '/bin/sh',
     '-c',
-    `g++ -Werror=return-type "/submission/${srcBase}" -o /workspace/a.out 2>/workspace/compile.err; COMPILE_STATUS=$?; if [ $COMPILE_STATUS -ne 0 ]; then cat /workspace/compile.err 1>&2; exit 2; fi; if [ -f /submission/${inputBase} ]; then /workspace/a.out < /submission/${inputBase} 1>/workspace/run.out 2>/workspace/run.err; else /workspace/a.out 1>/workspace/run.out 2>/workspace/run.err; fi; RUN_STATUS=$?; cat /workspace/run.out; if [ -s /workspace/run.err ]; then cat /workspace/run.err 1>&2; fi; exit $RUN_STATUS`
+    `timeout 10s g++ -Werror=return-type "/submission/${srcBase}" -o /workspace/a.out 2>/workspace/compile.err; COMPILE_STATUS=$?; if [ $COMPILE_STATUS -ne 0 ]; then cat /workspace/compile.err 1>&2; exit 2; fi; if [ -f /submission/${inputBase} ]; then timeout 15s /workspace/a.out < /submission/${inputBase} 1>/workspace/run.out 2>/workspace/run.err; else timeout 15s /workspace/a.out 1>/workspace/run.out 2>/workspace/run.err; fi; RUN_STATUS=$?; cat /workspace/run.out; if [ -s /workspace/run.err ]; then cat /workspace/run.err 1>&2; fi; exit $RUN_STATUS`
   ];
 
   try {

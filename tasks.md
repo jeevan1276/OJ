@@ -5,10 +5,10 @@ This document outlines the actionable engineering tasks required to bring the OJ
 ## 🔴 P0 - Critical Path (Must Fix)
 
 ### 1. Implement Multi-Tenancy Architecture
-- [ ] **Schema Updates:** Add `tenantId` (ObjectId, ref: 'Tenant', required) to `User`, `Problem`, `Submission`, and `HintUsage` models. Add compound indexes including `tenantId`.
-- [ ] **Tenant Model:** Create a new `Tenant` model to manage tenant-specific configs.
-- [ ] **Auth Middleware:** Update `deserializeUser` in `server/middleware/auth.js` to extract `tenantId` from the JWT and attach it to `req.user` / `req.tenant`.
-- [ ] **Query Scoping:** Update all `find()`, `findOne()`, `aggregate()`, and `create()` calls in controllers (`problem.js`, `user.js`, `aiController.js`) to enforce `tenantId` scoping.
+- [X] **Schema Updates:** Add `tenantId` (ObjectId, ref: 'Tenant', required) to `User`, `Problem`, `Submission`, and `HintUsage` models. Add compound indexes including `tenantId`.
+- [X] **Tenant Model:** Create a new `Tenant` model to manage tenant-specific configs.
+- [X] **Auth Middleware:** Update `deserializeUser` in `server/middleware/auth.js` to extract `tenantId` from the JWT and attach it to `req.user` / `req.tenant`.
+- [X] **Query Scoping:** Update all `find()`, `findOne()`, `aggregate()`, and `create()` calls in controllers (`problem.js`, `user.js`, `aiController.js`) to enforce `tenantId` scoping.
 
 ### 2. Implement Semantic Caching for AI
 - [ ] **Infrastructure:** Spin up a Redis instance or vector database (e.g., MongoDB Atlas Vector Search).
@@ -17,12 +17,12 @@ This document outlines the actionable engineering tasks required to bring the OJ
 - [ ] **Cache Miss/Hit Handling:** If similarity > threshold (e.g., 0.9), return the cached response. If miss, fetch from Gemini, then asynchronously store the query embedding and response in the cache.
 
 ### 3. Complete 3-Role RBAC Implementation
-- [ ] **Schema Update:** Modify `User.js` role enum from `['user', 'admin']` to `['user', 'problem-setter', 'admin']`.
-- [ ] **Authorization Update:** In `server/routes/problem.js`, modify route protection. E.g., `router.post('/', authorizeRoles('admin', 'problem-setter'), createProblem);`.
-- [ ] **Problem Ownership Checks:** Ensure `problem-setter` can only edit/delete problems they authored, whereas `admin` can edit/delete any problem.
+- [x] **Schema Update:** Modify `User.js` role enum from `['user', 'admin']` to `['user', 'problem-setter', 'admin']`.
+- [x] **Authorization Update:** In `server/routes/problem.js`, modify route protection. E.g., `router.post('/', authorizeRoles('admin', 'problem-setter'), createProblem);`.
+- [x] **Problem Ownership Checks:** Ensure `problem-setter` can only edit/delete problems they authored, whereas `admin` can edit/delete any problem.
 
 ### 4. Patch Rate-Limiter Security Bypass
-- [ ] **Fix Bypass:** In `server/middleware/rateLimiter.js`, modify the `skip` function to verify `process.env.NODE_ENV !== 'production'` before allowing the `x-test-mode` header to bypass limits.
+- [x] **Fix Bypass:** In `server/middleware/rateLimiter.js`, modify the `skip` function to verify `process.env.NODE_ENV !== 'production'` before allowing the `x-test-mode` header to bypass limits.
 
 ---
 
@@ -49,8 +49,8 @@ This document outlines the actionable engineering tasks required to bring the OJ
 - [ ] **Update Axios Calls:** Ensure backend `axios.post` calls include the new header.
 
 ### 9. Enforce C/C++ Execution Timeouts (Security)
-- [ ] **C++ Update:** In `Compiler/executeCpp.js`, prepend `timeout 15s ` to the runtime execution segment of the container bash script (similar to how `executeJava.js` does it).
-- [ ] **C Update:** Do the same for `Compiler/executeC.js`.
+- [X] **C++ Update:** In `Compiler/executeCpp.js`, prepend `timeout 15s ` to the runtime execution segment of the container bash script (similar to how `executeJava.js` does it).
+- [X] **C Update:** Do the same for `Compiler/executeC.js`.
 
 ---
 
