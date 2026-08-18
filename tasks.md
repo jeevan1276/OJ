@@ -40,8 +40,8 @@ This document outlines the actionable engineering tasks required to bring the OJ
 - [ ] **Return Memory Metric:** Pass the real memory usage back in the Compiler API response and store it in the `Submission` document.
 
 ### 7. Measure Execution Latency (Performance)
-- [ ] **Instrumentation:** Add `prom-client` or integrate structured logging (e.g., Winston) with response time tracking (fixing the dead code in `server/index.js` L23-L33).
-- [ ] **Track Percentiles:** Specifically track the p95 latency of the execution queue and compiler service to prove the 40% reduction PRD metric.
+- [X] **Instrumentation:** Add `prom-client` or integrate structured logging (e.g., Winston) with response time tracking (fixing the dead code in `server/index.js` L23-L33).
+- [X] **Track Percentiles:** Specifically track the p95 latency of the execution queue and compiler service to prove the 40% reduction PRD metric.
 
 ### 8. Authenticate Compiler Microservice (Security)
 - [ ] **Shared Secret:** Add `COMPILER_API_KEY` to both the backend and compiler `.env` files.

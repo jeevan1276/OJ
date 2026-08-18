@@ -5,6 +5,8 @@ import ErrorResponse from '../utils/errorResponse.js';
 import mongoose from 'mongoose';
 import axios from 'axios';
 import 'dotenv/config';
+import { codeExecutionDurationMs, totalSubmissions, activeCodeExecutions } from '../utils/metrics.js';
+import logger from '../utils/logger.js';
 const COMPILER_URL =  process.env.COMPILER_URL;
 export const createProblem = async (req, res) => {
     const { title, description, difficulty, categories, timeLimit, memoryLimit, publicTestCases, hiddenTestCases } = req.body;
@@ -573,6 +575,9 @@ export const runCode = async (req, res) => {
 
 export const submitSolution = async (req, res) => {
     try {
+        const submissionStartTime = Date.now();
+        activeCodeExecutions.inc();
+
         const { id } = req.params;
         const { code, language } = req.body;
 
@@ -638,6 +643,10 @@ export const submitSolution = async (req, res) => {
                 input: ''
             }, { timeout: 10000 });
             if (compileRes.data.stderr && compileRes.data.stderr.trim() !== '') {
+                const submissionDuration = Date.now() - submissionStartTime;
+                codeExecutionDurationMs.observe({ language, status: 'compilation_error' }, submissionDuration);
+                totalSubmissions.inc({ language, status: 'compilation_error' });
+                activeCodeExecutions.dec();
                 return res.status(StatusCodes.BAD_REQUEST).json({
                     success: false,
                     message: 'Compilation Error',
@@ -656,6 +665,10 @@ export const submitSolution = async (req, res) => {
             } else {
                 errorMessage = 'Unknown compilation error';
             }
+            const submissionDuration = Date.now() - submissionStartTime;
+            codeExecutionDurationMs.observe({ language, status: 'compilation_error' }, submissionDuration);
+            totalSubmissions.inc({ language, status: 'compilation_error' });
+            activeCodeExecutions.dec();
             return res.status(StatusCodes.BAD_REQUEST).json({
                 success: false,
                 message: 'Compilation Error',
@@ -720,6 +733,10 @@ export const submitSolution = async (req, res) => {
                         totalTestCases,
                         errorMessage: errorMessage || 'Runtime Error'
                     });
+                    const submissionDuration = Date.now() - submissionStartTime;
+                    codeExecutionDurationMs.observe({ language, status: 'runtime_error' }, submissionDuration);
+                    totalSubmissions.inc({ language, status: 'runtime_error' });
+                    activeCodeExecutions.dec();
                     return res.status(StatusCodes.OK).json({
                         success: false,
                         message: 'Runtime Error',
@@ -747,6 +764,10 @@ export const submitSolution = async (req, res) => {
                         totalTestCases,
                         errorMessage: errorMessage || 'Wrong Answer'
                     });
+                    const submissionDuration = Date.now() - submissionStartTime;
+                    codeExecutionDurationMs.observe({ language, status: 'wrong_answer' }, submissionDuration);
+                    totalSubmissions.inc({ language, status: 'wrong_answer' });
+                    activeCodeExecutions.dec();
                     return res.status(StatusCodes.OK).json({
                         success: false,
                         message: 'Wrong Answer',
@@ -822,6 +843,20 @@ export const submitSolution = async (req, res) => {
                 totalTestCases
             });
         }
+
+        const submissionDuration = Date.now() - submissionStartTime;
+        codeExecutionDurationMs.observe({ language, status }, submissionDuration);
+        totalSubmissions.inc({ language, status });
+        activeCodeExecutions.dec();
+
+        logger.info('Code submission completed', {
+          language,
+          status,
+          duration: `${submissionDuration}ms`,
+          testCasesPassed,
+          totalTestCases,
+          userId: req.user.id
+        });
 
         res.status(StatusCodes.OK).json({
             success: true,
