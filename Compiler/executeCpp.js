@@ -50,6 +50,7 @@ const executeCpp = async (filePath, inputFilePath = null) => {
 
     // map exit codes: 2 -> compile error, non-zero -> runtime error
     const execTime = result.execTime;
+    const memoryUsed = result.memoryUsed !== undefined ? result.memoryUsed : null;
     const stdout = result.stdout || '';
     const stderr = result.stderr || '';
 
@@ -62,7 +63,7 @@ const executeCpp = async (filePath, inputFilePath = null) => {
       return Promise.reject({ error: stderr || result.error || 'Execution failed', stderr });
     }
 
-    return { stdout, stderr, execTime };
+    return { stdout, stderr, execTime, memoryUsed };
   } catch (err) {
     try { fs.rmSync(runPath, { recursive: true, force: true }); } catch (e) {}
     throw err;

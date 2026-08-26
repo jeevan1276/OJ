@@ -7,7 +7,14 @@ import axios from 'axios';
 import 'dotenv/config';
 import { codeExecutionDurationMs, totalSubmissions, activeCodeExecutions } from '../utils/metrics.js';
 import logger from '../utils/logger.js';
-const COMPILER_URL =  process.env.COMPILER_URL;
+import { submissionQueue } from '../queues/submissionQueue.js';
+import { Queue } from 'bullmq';
+import IORedis from 'ioredis';
+
+const COMPILER_URL = process.env.COMPILER_URL;
+const COMPILER_HEADERS = process.env.COMPILER_API_KEY
+  ? { 'x-api-key': process.env.COMPILER_API_KEY }
+  : {};
 export const createProblem = async (req, res) => {
     const { title, description, difficulty, categories, timeLimit, memoryLimit, publicTestCases, hiddenTestCases } = req.body;
 
@@ -527,7 +534,7 @@ export const runCode = async (req, res) => {
               language,
               code: wrappedCode,
               input: ''
-          }, { timeout: 10000 });
+          }, { timeout: 10000, headers: COMPILER_HEADERS });
           const errorObj = cleanCompilerError(compileRes.data.stderr || '', language, code);
           let output = (compileRes.data.stdout || '').trim();
           if (output.endsWith(',')) output = output.slice(0, -1);
@@ -641,7 +648,7 @@ export const submitSolution = async (req, res) => {
                 language,
                 code: compileCheckWrapped,
                 input: ''
-            }, { timeout: 10000 });
+            }, { timeout: 10000, headers: COMPILER_HEADERS });
             if (compileRes.data.stderr && compileRes.data.stderr.trim() !== '') {
                 const submissionDuration = Date.now() - submissionStartTime;
                 codeExecutionDurationMs.observe({ language, status: 'compilation_error' }, submissionDuration);
@@ -695,7 +702,7 @@ export const submitSolution = async (req, res) => {
                     language,
                     code: wrappedCode,
                     input: ''
-                }, { timeout: 10000 });
+                }, { timeout: 10000, headers: COMPILER_HEADERS });
                 const execTime = compileRes.data.execTime || 0;
                 totalExecutionTime += execTime;
                 
@@ -789,8 +796,9 @@ export const submitSolution = async (req, res) => {
                     status = 'time_limit_exceeded';
                     break;
                 }
-                
-                const memoryUsed = Math.floor(Math.random() * 50) + 10;
+
+                // Use real memory from compiler response (Task 6)
+                const memoryUsed = compileRes.data.memoryUsed || 0;
                 totalMemoryUsed = Math.max(totalMemoryUsed, memoryUsed);
                 
             } catch (error) {
@@ -1158,7 +1166,7 @@ export const runCustomTestCase = async (req, res) => {
       language,
       code: wrappedCode,
       input: ''
-    }, { timeout: 10000 });
+    }, { timeout: 10000, headers: COMPILER_HEADERS });
     const errorObj = cleanCompilerError(compileRes.data.stderr || '', language, code);
     let output = (compileRes.data.stdout || '').trim();
     if (output.endsWith(',')) output = output.slice(0, -1);
@@ -1189,4 +1197,122 @@ export const runCustomTestCase = async (req, res) => {
     };
     return res.status(StatusCodes.OK).json({ success: false, data: resultObj });
   }
-}; 
+};
+
+// ─── Task 5: Async Queue-Based Execution ────────────────────────────────────
+
+/**
+ * POST /api/v1/problems/:id/submit-async
+ * Enqueues a full submission job and returns a jobId immediately.
+ * Client should poll GET /api/v1/problems/jobs/:jobId/status for results.
+ */
+export const submitSolutionAsync = async (req, res) => {
+  try {
+    const { id: problemId } = req.params;
+    const { code, language } = req.body;
+
+    if (!code || !language) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Code and language are required' });
+    }
+
+    const supportedLanguages = ['cpp', 'c', 'java'];
+    if (!supportedLanguages.includes(language)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Only C, C++, and Java are supported.' });
+    }
+
+    const job = await submissionQueue.add('submit', {
+      type: 'submit',
+      problemId,
+      code,
+      language,
+      userId: req.user.id,
+      tenantId: req.tenantId
+    });
+
+    return res.status(StatusCodes.ACCEPTED).json({
+      success: true,
+      message: 'Submission queued. Poll /jobs/:jobId/status for results.',
+      data: { jobId: job.id }
+    });
+  } catch (error) {
+    logger.error('Failed to enqueue submission', { error: error.message });
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: 'Failed to queue submission' });
+  }
+};
+
+/**
+ * POST /api/v1/problems/:id/run-async
+ * Enqueues a run-against-public-testcases job and returns a jobId immediately.
+ */
+export const runCodeAsync = async (req, res) => {
+  try {
+    const { id: problemId } = req.params;
+    const { code, language } = req.body;
+
+    if (!code || !language) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Code and language are required' });
+    }
+
+    const supportedLanguages = ['cpp', 'c', 'java'];
+    if (!supportedLanguages.includes(language)) {
+      return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Only C, C++, and Java are supported.' });
+    }
+
+    const job = await submissionQueue.add('run', {
+      type: 'run',
+      problemId,
+      code,
+      language,
+      userId: req.user.id,
+      tenantId: req.tenantId
+    });
+
+    return res.status(StatusCodes.ACCEPTED).json({
+      success: true,
+      message: 'Run job queued. Poll /jobs/:jobId/status for results.',
+      data: { jobId: job.id }
+    });
+  } catch (error) {
+    logger.error('Failed to enqueue run job', { error: error.message });
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: 'Failed to queue run job' });
+  }
+};
+
+/**
+ * GET /api/v1/problems/jobs/:jobId/status
+ * Short-polling endpoint — returns the current state and result of a queued job.
+ * States: waiting | active | completed | failed | delayed | unknown
+ */
+export const getJobStatus = async (req, res) => {
+  try {
+    const { jobId } = req.params;
+    const job = await submissionQueue.getJob(jobId);
+
+    if (!job) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Job not found or already expired' });
+    }
+
+    const state = await job.getState();
+    const progress = job.progress;
+
+    let result = null;
+    if (state === 'completed') {
+      result = job.returnvalue;
+    } else if (state === 'failed') {
+      result = { error: job.failedReason };
+    }
+
+    return res.status(StatusCodes.OK).json({
+      success: true,
+      data: {
+        jobId,
+        state,        // 'waiting' | 'active' | 'completed' | 'failed' | 'delayed'
+        progress,
+        result        // null while pending, populated when completed/failed
+      }
+    });
+  } catch (error) {
+    logger.error('Failed to get job status', { error: error.message });
+    res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: 'Failed to get job status' });
+  }
+};

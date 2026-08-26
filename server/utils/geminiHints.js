@@ -2,6 +2,7 @@ import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
 import HintUsage from '../models/HintUsage.js';
 import mongoose from 'mongoose';
+import { semanticCacheGenerate } from './semanticCache.js';
 
 dotenv.config();
 
@@ -22,7 +23,6 @@ const ai = new GoogleGenAI({
  */
 export async function generateHint(problemData, userCode, hintNumber = 1) {
   try {
-    const model = ai.models;
     const context = `
 Problem: ${problemData.title}
 
@@ -43,11 +43,16 @@ Instructions: Generate hint number ${hintNumber} for this problem.
 - If hint ${hintNumber} has already been given, provide a different perspective
 - Be encouraging and helpful
 `;
-    const response = await model.generateContent({
-      model: "gemini-2.5-flash",
-      contents: context,
+    // Cache key: use context as the semantic query (deduplicated by similarity)
+    const { response } = await semanticCacheGenerate(context, async () => {
+      const model = ai.models;
+      const result = await model.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: context,
+      });
+      return stripMarkdown(result.text);
     });
-    return stripMarkdown(response.text);
+    return response;
   } catch (error) {
     return `Sorry, I couldn't generate a hint right now. Please try again later.`;
   }

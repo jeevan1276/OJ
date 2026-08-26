@@ -1,0 +1,180 @@
+# docker-compose.yml — OJ Platform (Task 12)
+# Orchestrates: MongoDB, Redis, Express backend, BullMQ worker, Compiler microservice, Nginx frontend
+#
+# Usage:
+#   docker-compose up --build        # start all services
+#   docker-compose up -d             # start in detached mode
+#   docker-compose down -v           # stop and remove volumes
+#
+# Required: copy .env.example to .env and fill in secrets before starting.
+
+version: '3.9'
+
+services:
+
+  # ─── Infrastructure ──────────────────────────────────────────────────────────
+
+  mongo:
+    image: mongo:7
+    container_name: oj_mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-admin}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-changeme}
+      MONGO_INITDB_DATABASE: ${MONGO_DB:-oj}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - oj_network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: oj_redis
+    restart: unless-stopped
+    command: >
+      sh -c "redis-server
+      ${REDIS_PASSWORD:+--requirepass $REDIS_PASSWORD}"
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - oj_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Compiler Microservice ───────────────────────────────────────────────────
+
+  compiler:
+    build:
+      context: ./Compiler
+      dockerfile: Dockerfile
+    container_name: oj_compiler
+    restart: unless-stopped
+    environment:
+      PORT: 8000
+      COMPILER_API_KEY: ${COMPILER_API_KEY}
+      SANDBOX_MEMORY_MB: ${SANDBOX_MEMORY_MB:-256}
+      SANDBOX_CPU_LIMIT: ${SANDBOX_CPU_LIMIT:-0.5}
+      SANDBOX_PIDS_LIMIT: ${SANDBOX_PIDS_LIMIT:-64}
+      SANDBOX_TIMEOUT_MS: ${SANDBOX_TIMEOUT_MS:-25000}
+      SANDBOX_RUNNER_IMAGE: ${SANDBOX_RUNNER_IMAGE:-oj-runner:latest}
+    ports:
+      - "8000:8000"
+    volumes:
+      # Mount Docker socket so the compiler can spawn sibling containers
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - oj_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── Express Backend (API server) ────────────────────────────────────────────
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: oj_backend
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      compiler:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 5000
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongo:27017/${MONGO_DB:-oj}?authSource=admin
+      JWT_SECRET: ${JWT_SECRET}
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+      COMPILER_URL: http://compiler:8000/compile
+      COMPILER_API_KEY: ${COMPILER_API_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      SEMANTIC_CACHE_THRESHOLD: ${SEMANTIC_CACHE_THRESHOLD:-0.92}
+      SEMANTIC_CACHE_MAX_SIZE: ${SEMANTIC_CACHE_MAX_SIZE:-200}
+    ports:
+      - "5000:5000"
+    networks:
+      - oj_network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  # ─── BullMQ Worker Process (Task 5) ──────────────────────────────────────────
+
+  worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: oj_worker
+    restart: unless-stopped
+    command: ["node", "workers/submissionWorker.js"]
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      compiler:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      MONGODB_URI: mongodb://${MONGO_ROOT_USER:-admin}:${MONGO_ROOT_PASSWORD:-changeme}@mongo:27017/${MONGO_DB:-oj}?authSource=admin
+      COMPILER_URL: http://compiler:8000/compile
+      COMPILER_API_KEY: ${COMPILER_API_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-5}
+    networks:
+      - oj_network
+
+  # ─── Nginx Frontend ───────────────────────────────────────────────────────────
+
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: oj_frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - oj_network
+
+# ─── Volumes ──────────────────────────────────────────────────────────────────
+
+volumes:
+  mongo_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ─── Networks ─────────────────────────────────────────────────────────────────
+
+networks:
+  oj_network:
+    driver: bridge

@@ -9,9 +9,28 @@ import fs from 'fs';
 const app = express();
 app.use(express.json());
 
+// --- API Key Authentication Middleware ---
+const apiKeyAuth = (req, res, next) => {
+  // Skip auth for health-check root
+  if (req.path === '/') return next();
+
+  const expectedKey = process.env.COMPILER_API_KEY;
+  if (!expectedKey) {
+    // If no key is configured, skip auth (dev mode fallback)
+    return next();
+  }
+  const providedKey = req.headers['x-api-key'];
+  if (!providedKey || providedKey !== expectedKey) {
+    return res.status(401).json({ error: 'Unauthorized: invalid or missing x-api-key header.' });
+  }
+  next();
+};
+app.use(apiKeyAuth);
+
 app.get('/', (req, res) => {
   res.send('Compiler microservice is running!');
 });
+
 
 app.post('/compile', async (req, res) => {
   const startTime = Date.now();
@@ -52,15 +71,15 @@ app.post('/compile', async (req, res) => {
       setTimeout(() => { try { fs.unlinkSync(inputFilePath); } catch (e) {
       } }, 20000);
     }
-    const endTime = Date.now();
-    const totalTime = endTime - startTime;
     
     return res.json({
       stdout: result.stdout || '',
       stderr: result.stderr || '',
       exitCode: result.exitCode !== undefined ? result.exitCode : 0,
-      execTime: result.execTime !== undefined ? result.execTime : null
+      execTime: result.execTime !== undefined ? result.execTime : null,
+      memoryUsed: result.memoryUsed !== undefined ? result.memoryUsed : null
     });
+
   } catch (error) {
     const endTime = Date.now();
     const totalTime = endTime - startTime;

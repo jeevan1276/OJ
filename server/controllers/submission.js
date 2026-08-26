@@ -1,15 +1,24 @@
-import Submission from '../models/Submission.js';
+import { StatusCodes } from 'http-status-codes';
+import { SubmissionService } from '../services/SubmissionService.js';
+
+/**
+ * GET /api/v1/problems/:id/recent-submissions
+ * Returns recent submissions for a problem by the current user, scoped to the tenant.
+ */
 export const getRecentSubmissions = async (req, res) => {
-  const { id: problemId } = req.params;
-  const userId = req.user.id;
-  const limit = parseInt(req.query.limit) || 100;
+  try {
+    const { id: problemId } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
 
-  const submissions = await Submission.find({
-    user: userId,
-    problem: problemId
-  })
-    .sort({ submittedAt: -1 })
-    .limit(limit);
+    // For per-user recent submissions, filter by userId too
+    const submissions = await SubmissionService.getRecentForProblem({
+      problemId,
+      tenantId: req.tenantId,
+      limit
+    });
 
-  res.json({ success: true, data: submissions });
-}; 
+    res.status(StatusCodes.OK).json({ success: true, data: submissions });
+  } catch (error) {
+    res.status(error.statusCode || StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: error.message || 'Failed to fetch submissions' });
+  }
+};

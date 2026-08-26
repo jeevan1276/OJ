@@ -1,6 +1,7 @@
 import { execFile } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { v4 as uuid } from 'uuid';
 
 const DEFAULTS = {
   memoryMb: parseInt(process.env.SANDBOX_MEMORY_MB || '256', 10),
@@ -11,7 +12,7 @@ const DEFAULTS = {
   secccomp: process.env.SANDBOX_SECCOMP_PROFILE || '' // optional
 };
 
-function buildDockerArgs({ image, hostSubmissionDir, workspaceTmpfsSize = '32m', cmdArgs = [] }) {
+function buildDockerArgs({ image, hostSubmissionDir, containerName, workspaceTmpfsSize = '32m', cmdArgs = [] }) {
   const args = [
     'run',
     '--rm',
@@ -35,10 +36,40 @@ function buildDockerArgs({ image, hostSubmissionDir, workspaceTmpfsSize = '32m',
   args.push('-u', `${DEFAULTS.userUid}:${DEFAULTS.userUid}`);
   args.push('--stop-timeout', '1');
 
+  if (containerName) {
+    args.push('--name', containerName);
+  }
+
   args.push(image);
 
   // append container command
   return args.concat(cmdArgs);
+}
+
+/**
+ * Execute `docker stats --no-stream` on a named container to get peak memory.
+ * Returns memory in MB or null if unavailable.
+ */
+function getContainerMemoryMb(containerName) {
+  return new Promise((resolve) => {
+    execFile(
+      'docker',
+      ['stats', '--no-stream', '--format', '{{.MemUsage}}', containerName],
+      { timeout: 5000 },
+      (err, stdout) => {
+        if (err || !stdout) return resolve(null);
+        // Format: "12.5MiB / 256MiB" — extract first value
+        const match = stdout.trim().match(/^([\d.]+)([KMGi]+)B/i);
+        if (!match) return resolve(null);
+        const value = parseFloat(match[1]);
+        const unit = match[2].toUpperCase().replace('I', '');
+        let mb = value;
+        if (unit === 'K' || unit === 'KIB') mb = value / 1024;
+        else if (unit === 'G' || unit === 'GIB') mb = value * 1024;
+        resolve(Math.round(mb * 10) / 10);
+      }
+    );
+  });
 }
 
 function runInDocker({ image, hostSubmissionDir, containerCmdArgs, timeoutMs }) {
@@ -47,7 +78,8 @@ function runInDocker({ image, hostSubmissionDir, containerCmdArgs, timeoutMs }) 
       return reject(new Error('Submission directory not found'));
     }
 
-    const args = buildDockerArgs({ image, hostSubmissionDir, cmdArgs: containerCmdArgs });
+    const containerName = `oj-runner-${uuid()}`;
+    const args = buildDockerArgs({ image, hostSubmissionDir, containerName, cmdArgs: containerCmdArgs });
 
     const opts = {
       timeout: timeoutMs || DEFAULTS.timeoutMs,
@@ -56,14 +88,24 @@ function runInDocker({ image, hostSubmissionDir, containerCmdArgs, timeoutMs }) 
     };
 
     const start = Date.now();
+
+    // Kick off stats polling before container starts (it will retry until container exists)
+    let peakMemoryMb = null;
+    const statsInterval = setInterval(async () => {
+      const mem = await getContainerMemoryMb(containerName);
+      if (mem !== null && (peakMemoryMb === null || mem > peakMemoryMb)) {
+        peakMemoryMb = mem;
+      }
+    }, 200);
+
     const child = execFile('docker', args, opts, (err, stdout, stderr) => {
+      clearInterval(statsInterval);
       const execTime = Date.now() - start;
       if (err) {
-        // Distinguish between docker CLI errors (exit code null) and container-run errors
         const exitCode = err.code !== undefined ? err.code : null;
-        return resolve({ error: err, stdout: stdout || '', stderr: stderr || '', exitCode, execTime });
+        return resolve({ error: err, stdout: stdout || '', stderr: stderr || '', exitCode, execTime, memoryUsed: peakMemoryMb });
       }
-      return resolve({ stdout: stdout || '', stderr: stderr || '', exitCode: 0, execTime });
+      return resolve({ stdout: stdout || '', stderr: stderr || '', exitCode: 0, execTime, memoryUsed: peakMemoryMb });
     });
   });
 }

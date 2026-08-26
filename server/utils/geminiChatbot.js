@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import dotenv from 'dotenv';
+import { semanticCacheGenerate } from './semanticCache.js';
 
 // Load environment variables
 dotenv.config();
@@ -98,13 +99,14 @@ Please provide a helpful response to the user's question or request.
 Be friendly, concise, and educational.
 Do not use markdown, asterisks, or any special formatting like bold or italics. Write in plain text only.
 `;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
+    const { response } = await semanticCacheGenerate(prompt, async () => {
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      return stripMarkdown(result.text);
     });
-    return stripMarkdown(response.text);
-    
+    return response;
   } catch (error) {
     return `I'm sorry, I'm having trouble responding right now. Please try again later or contact support.`;
   }
@@ -136,13 +138,14 @@ Please provide helpful guidance on this programming question.
 - Focus on teaching the concept, not just fixing the code
 - Do not use markdown, asterisks, or any special formatting like bold or italics. Write in plain text only.
 `;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-flash",
-      contents: prompt,
+    const { response } = await semanticCacheGenerate(prompt, async () => {
+      const result = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+      });
+      return stripMarkdown(result.text);
     });
-    return stripMarkdown(response.text);
-    
+    return response;
   } catch (error) {
     return `I'm sorry, I'm having trouble providing programming help right now. Please try again later.`;
   }
