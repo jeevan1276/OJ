@@ -496,6 +496,11 @@ export const runCode = async (req, res) => {
       throw new ErrorResponse(`Problem with id ${id} not found`, StatusCodes.NOT_FOUND);
   }
 
+  // Verify problem belongs to tenant
+  if (problem.tenantId.toString() !== req.tenantId.toString()) {
+      throw new ErrorResponse('You do not have access to this problem.', StatusCodes.FORBIDDEN);
+  }
+
   const supportedLanguages = ['cpp', 'c', 'java'];
   if (!supportedLanguages.includes(language)) {
       return res.status(StatusCodes.BAD_REQUEST).json({
@@ -592,6 +597,11 @@ export const submitSolution = async (req, res) => {
 
         if (!problem) {
             throw new ErrorResponse(`Problem with id ${id} not found`, StatusCodes.NOT_FOUND);
+        }
+
+        // Verify problem belongs to tenant
+        if (problem.tenantId.toString() !== req.tenantId.toString()) {
+            throw new ErrorResponse('You do not have access to this problem.', StatusCodes.FORBIDDEN);
         }
 
         const supportedLanguages = ['cpp', 'c', 'java'];
@@ -889,6 +899,7 @@ export const submitSolution = async (req, res) => {
 };
 export const getProblemStats = async (req, res) => {
     const stats = await Problem.aggregate([
+        { $match: { tenantId: new mongoose.Types.ObjectId(req.tenantId) } },
         {
             $group: {
                 _id: '$difficulty',
@@ -908,6 +919,7 @@ export const getProblemStats = async (req, res) => {
     ]);
 
     const categoryStats = await Problem.aggregate([
+        { $match: { tenantId: new mongoose.Types.ObjectId(req.tenantId) } },
         { $unwind: '$categories' },
         {
             $group: {
@@ -1128,6 +1140,14 @@ export const runCustomTestCase = async (req, res) => {
     });
   }
 
+  // Verify problem belongs to tenant
+  if (problem.tenantId.toString() !== req.tenantId.toString()) {
+    return res.status(StatusCodes.FORBIDDEN).json({
+      success: false,
+      message: 'You do not have access to this problem.'
+    });
+  }
+
   const supportedLanguages = ['cpp', 'c', 'java'];
   if (!supportedLanguages.includes(language)) {
     return res.status(StatusCodes.BAD_REQUEST).json({
@@ -1290,6 +1310,10 @@ export const getJobStatus = async (req, res) => {
 
     if (!job) {
       return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: 'Job not found or already expired' });
+    }
+
+    if (job.data.tenantId && job.data.tenantId.toString() !== req.tenantId.toString()) {
+      return res.status(StatusCodes.FORBIDDEN).json({ success: false, message: 'You do not have access to this job' });
     }
 
     const state = await job.getState();

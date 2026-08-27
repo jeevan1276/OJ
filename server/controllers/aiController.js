@@ -59,7 +59,7 @@ export const generateProblemHint = async (req, res) => {
     if (currentHints.length >= requestedHintNumber) {
       hint = currentHints[requestedHintNumber - 1];
     } else {
-      hint = await generateHint(problemData, userCode, requestedHintNumber);
+      hint = await generateHint(problemData, userCode, requestedHintNumber, tenantId);
       await recordHintUsage(userId, problemId, tenantId, requestedHintNumber, hint);
     }
 
@@ -103,6 +103,7 @@ export const getChatbotResponse = async (req, res) => {
     }
 
     const { message, context, type = 'general' } = req.body;
+    const tenantId = req.tenantId;
 
     if (!message || message.trim().length === 0) {
       return res.status(400).json({
@@ -116,10 +117,10 @@ export const getChatbotResponse = async (req, res) => {
     if (type === 'programming') {
       // Handle programming-specific questions
       const { language, code } = req.body;
-      response = await generateProgrammingHelp(message, language, code);
+      response = await generateProgrammingHelp(message, language, code, tenantId);
     } else {
       // Handle general platform questions
-      response = await generateChatbotResponse(message, context);
+      response = await generateChatbotResponse(message, context, tenantId);
     }
 
     res.json({

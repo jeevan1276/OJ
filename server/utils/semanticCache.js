@@ -50,13 +50,15 @@ export async function generateEmbedding(text) {
 /**
  * Look up the semantic cache for a query that is similar enough to a cached entry.
  * @param {number[]} queryEmbedding - Embedding of the incoming query
+ * @param {string} tenantId - Tenant ID for isolation
  * @returns {{ response: string, similarity: number } | null}
  */
-export function lookupCache(queryEmbedding) {
+export function lookupCache(queryEmbedding, tenantId) {
   if (!queryEmbedding) return null;
   let best = null;
   let bestScore = -1;
   for (const entry of semanticCache) {
+    if (entry.tenantId !== tenantId) continue;
     const score = cosineSimilarity(queryEmbedding, entry.embedding);
     if (score > bestScore) {
       bestScore = score;
@@ -73,8 +75,9 @@ export function lookupCache(queryEmbedding) {
  * Store a response in the semantic cache (async fire-and-forget).
  * @param {string} queryText - The original text used for embedding
  * @param {string} response - The AI response to cache
+ * @param {string} tenantId - Tenant ID for isolation
  */
-export async function storeInCache(queryText, response) {
+export async function storeInCache(queryText, response, tenantId) {
   try {
     const embedding = await generateEmbedding(queryText);
     if (!embedding) return;
@@ -82,7 +85,7 @@ export async function storeInCache(queryText, response) {
     if (semanticCache.length >= MAX_CACHE_SIZE) {
       semanticCache.shift();
     }
-    semanticCache.push({ embedding, response, key: queryText.slice(0, 100) });
+    semanticCache.push({ embedding, response, key: queryText.slice(0, 100), tenantId });
   } catch {
     // Non-critical; silently fail
   }
@@ -93,12 +96,13 @@ export async function storeInCache(queryText, response) {
  * Checks cache first; on miss, calls Gemini and stores result asynchronously.
  *
  * @param {string} queryText - The text to embed and look up / use as prompt
+ * @param {string} tenantId - Tenant ID for isolation
  * @param {Function} generateFn - An async function that returns the AI response string on cache miss
  * @returns {Promise<{ response: string, fromCache: boolean }>}
  */
-export async function semanticCacheGenerate(queryText, generateFn) {
+export async function semanticCacheGenerate(queryText, tenantId, generateFn) {
   const embedding = await generateEmbedding(queryText);
-  const cached = lookupCache(embedding);
+  const cached = lookupCache(embedding, tenantId);
   if (cached) {
     return { response: cached.response, fromCache: true };
   }
@@ -106,6 +110,6 @@ export async function semanticCacheGenerate(queryText, generateFn) {
   // Cache miss — call the actual AI
   const response = await generateFn();
   // Asynchronously store in cache (don't await)
-  storeInCache(queryText, response).catch(() => {});
+  storeInCache(queryText, response, tenantId).catch(() => {});
   return { response, fromCache: false };
 }

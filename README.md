@@ -349,10 +349,7 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 - **Monaco Editor** for the excellent code editing experience
 - **BullMQ** for reliable job queue infrastructure
 - **React Community** for the amazing ecosystem
-- **Open Source Contributors** who made this project possible
+
 
 ---
 
-**Happy Coding! 🎉**
-
-*Built with ❤️ by the OJ Team*

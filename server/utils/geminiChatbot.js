@@ -84,9 +84,10 @@ RESPONSE GUIDELINES:
  * Generate chatbot response based on user message
  * @param {string} userMessage - User's message/question
  * @param {string} context - Additional context (optional)
+ * @param {string} tenantId - Tenant ID for isolation
  * @returns {Promise<string>} Chatbot response
  */
-export async function generateChatbotResponse(userMessage, context = '') {
+export async function generateChatbotResponse(userMessage, context = '', tenantId) {
   try {
     const prompt = `
 ${PLATFORM_KNOWLEDGE}
@@ -99,7 +100,7 @@ Please provide a helpful response to the user's question or request.
 Be friendly, concise, and educational.
 Do not use markdown, asterisks, or any special formatting like bold or italics. Write in plain text only.
 `;
-    const { response } = await semanticCacheGenerate(prompt, async () => {
+    const { response } = await semanticCacheGenerate(prompt, tenantId, async () => {
       const result = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
@@ -117,9 +118,10 @@ Do not use markdown, asterisks, or any special formatting like bold or italics. 
  * @param {string} question - Programming question
  * @param {string} language - Programming language (optional)
  * @param {string} code - User's code (optional)
+ * @param {string} tenantId - Tenant ID for isolation
  * @returns {Promise<string>} Programming help response
  */
-export async function generateProgrammingHelp(question, language = '', code = '') {
+export async function generateProgrammingHelp(question, language = '', code = '', tenantId) {
   try {
     const prompt = `
 You are a helpful programming tutor for an online coding judge platform.
@@ -138,7 +140,7 @@ Please provide helpful guidance on this programming question.
 - Focus on teaching the concept, not just fixing the code
 - Do not use markdown, asterisks, or any special formatting like bold or italics. Write in plain text only.
 `;
-    const { response } = await semanticCacheGenerate(prompt, async () => {
+    const { response } = await semanticCacheGenerate(prompt, tenantId, async () => {
       const result = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,

@@ -19,9 +19,10 @@ const ai = new GoogleGenAI({
  * @param {Array} problemData.examples - Problem examples
  * @param {string} userCode - User's current code
  * @param {number} hintNumber - Which hint to generate (1 or 2)
+ * @param {string} tenantId - Tenant ID for isolation
  * @returns {Promise<string>} Generated hint
  */
-export async function generateHint(problemData, userCode, hintNumber = 1) {
+export async function generateHint(problemData, userCode, hintNumber = 1, tenantId) {
   try {
     const context = `
 Problem: ${problemData.title}
@@ -44,7 +45,7 @@ Instructions: Generate hint number ${hintNumber} for this problem.
 - Be encouraging and helpful
 `;
     // Cache key: use context as the semantic query (deduplicated by similarity)
-    const { response } = await semanticCacheGenerate(context, async () => {
+    const { response } = await semanticCacheGenerate(context, tenantId, async () => {
       const model = ai.models;
       const result = await model.generateContent({
         model: 'gemini-2.5-flash',

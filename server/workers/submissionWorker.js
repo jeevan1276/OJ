@@ -84,6 +84,10 @@ const worker = new Worker('submissions', async (job) => {
   const problem = await Problem.findById(problemId);
   if (!problem) throw new Error(`Problem ${problemId} not found`);
 
+  if (problem.tenantId.toString() !== tenantId.toString()) {
+    throw new Error(`Problem ${problemId} does not belong to tenant ${tenantId}`);
+  }
+
   const helpers = getLanguageHelpers(language, problem);
 
   if (type === 'run') {
