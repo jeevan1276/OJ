@@ -1,3 +1,4 @@
+        // String array
 import Problem from '../models/Problem.js';
 import Submission from '../models/Submission.js';
 import { StatusCodes } from 'http-status-codes';
@@ -490,7 +491,7 @@ export const runCode = async (req, res) => {
       throw new ErrorResponse('Code and language are required', StatusCodes.BAD_REQUEST);
   }
 
-  const problem = await Problem.findById(id);
+  const problem = await Problem.findOne({ _id: id, tenantId: req.tenantId });
 
   if (!problem) {
       throw new ErrorResponse(`Problem with id ${id} not found`, StatusCodes.NOT_FOUND);
@@ -593,7 +594,7 @@ export const submitSolution = async (req, res) => {
         const { id } = req.params;
         const { code, language } = req.body;
 
-        const problem = await Problem.findById(id);
+        const problem = await Problem.findOne({ _id: id, tenantId: req.tenantId });
 
         if (!problem) {
             throw new ErrorResponse(`Problem with id ${id} not found`, StatusCodes.NOT_FOUND);
@@ -1132,7 +1133,7 @@ export const runCustomTestCase = async (req, res) => {
     });
   }
 
-  const problem = await Problem.findById(id);
+  const problem = await Problem.findOne({ _id: id, tenantId: req.tenantId });
   if (!problem) {
     return res.status(StatusCodes.NOT_FOUND).json({
       success: false,
@@ -1235,6 +1236,11 @@ export const submitSolutionAsync = async (req, res) => {
       return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Code and language are required' });
     }
 
+    const problem = await Problem.findOne({ _id: problemId, tenantId: req.tenantId });
+    if (!problem) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: `Problem with id ${problemId} not found` });
+    }
+
     const supportedLanguages = ['cpp', 'c', 'java'];
     if (!supportedLanguages.includes(language)) {
       return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Only C, C++, and Java are supported.' });
@@ -1271,6 +1277,11 @@ export const runCodeAsync = async (req, res) => {
 
     if (!code || !language) {
       return res.status(StatusCodes.BAD_REQUEST).json({ success: false, message: 'Code and language are required' });
+    }
+
+    const problem = await Problem.findOne({ _id: problemId, tenantId: req.tenantId });
+    if (!problem) {
+      return res.status(StatusCodes.NOT_FOUND).json({ success: false, message: `Problem with id ${problemId} not found` });
     }
 
     const supportedLanguages = ['cpp', 'c', 'java'];
@@ -1339,4 +1350,4 @@ export const getJobStatus = async (req, res) => {
     logger.error('Failed to get job status', { error: error.message });
     res.status(StatusCodes.INTERNAL_SERVER_ERROR).json({ success: false, message: 'Failed to get job status' });
   }
-};
+};

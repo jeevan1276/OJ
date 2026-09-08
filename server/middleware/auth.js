@@ -13,9 +13,19 @@ export const deserializeUser = async (req, res, next) => {
             if (!req.user) {
                 req.authError = { type: 'UserNotFound' };
             } else {
-                // Extract tenantId from JWT and attach to request
-                req.tenant = { id: decoded.tenantId };
-                req.tenantId = decoded.tenantId;
+                const tenantId = req.user.tenantId?.toString();
+                const tokenTenantId = decoded.tenantId?.toString();
+                const tenant = tenantId
+                    ? await Tenant.findOne({ _id: tenantId, isActive: true }).select('_id')
+                    : null;
+
+                if (!tenant || (tokenTenantId && tokenTenantId !== tenantId)) {
+                    req.user = null;
+                    req.authError = { type: 'InvalidTenant' };
+                } else {
+                    req.tenant = { id: tenant._id };
+                    req.tenantId = tenant._id;
+                }
             }
         } catch (err) {
             if (err.name === 'TokenExpiredError') {
