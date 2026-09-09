@@ -1,4 +1,3 @@
-        // String array
 import Problem from '../models/Problem.js';
 import Submission from '../models/Submission.js';
 import { StatusCodes } from 'http-status-codes';
