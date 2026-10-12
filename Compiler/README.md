@@ -6,7 +6,6 @@ Sandboxing model
 - The service spawns a disposable container per submission using the local Docker daemon.
 - The container image to run submissions is `oj-runner:latest` by default; build it from `runner.Dockerfile`.
 - The service requires access to the Docker CLI and Docker daemon (`/var/run/docker.sock`) or an alternative container API. See SECURITY below.
-
 How it works
 1. The service writes the submission source (and optional input) to a unique host temp directory.
 2. It calls `docker run --rm --network none --memory <MB> --cpus <value> --pids-limit <n> --cap-drop=ALL --security-opt=no-new-privileges --read-only --tmpfs /tmp:size=16m --tmpfs /workspace:size=32m -v <hostdir>:/submission:ro -u 1000 oj-runner:latest /bin/sh -c "compile-and-run"`.

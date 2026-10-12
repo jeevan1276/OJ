@@ -125,6 +125,58 @@ All business logic is extracted from controllers into a `services/` layer:
 - Docker (required for code execution sandbox)
 - Google Cloud account (for Gemini AI features)
 
+### PowerShell (Windows)
+
+Run the following commands from PowerShell. Start each service in a separate PowerShell window.
+
+```powershell
+# Clone the repository
+git clone <repository-url>
+Set-Location .\OJ
+
+# Install dependencies
+Set-Location .\client
+npm install
+Set-Location ..\server
+npm install
+Set-Location ..\Compiler
+npm install
+Set-Location ..
+
+# Create the environment file, then edit it with your preferred editor
+Copy-Item .\.env.example .\.env
+notepad .\.env
+
+# Build the sandbox runner image
+docker build -t oj-runner:latest -f .\Compiler\runner.Dockerfile .\Compiler
+```
+
+Start the development services in separate PowerShell windows:
+
+```powershell
+# Backend API server
+Set-Location .\server
+npm run server
+```
+
+```powershell
+# BullMQ worker
+Set-Location .\server
+npm run worker:dev
+```
+
+```powershell
+# Compiler microservice
+Set-Location .\Compiler
+npm run compiler
+```
+
+```powershell
+# Frontend
+Set-Location .\client
+npm run dev
+```
+
 ### 1. Clone
 ```bash
 git clone <repository-url>
@@ -352,4 +404,3 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 
 
 ---
-
